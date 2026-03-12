@@ -13,6 +13,13 @@ const currency = new Intl.NumberFormat('en-AU', {
   maximumFractionDigits: 0
 });
 
+const currencyWithCents = new Intl.NumberFormat('en-AU', {
+  style: 'currency',
+  currency: 'AUD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
+
 function baseStampDuty(state: State, price: number): number {
   if (price <= 0) return 0;
 
@@ -292,8 +299,8 @@ export default function HomePage() {
           <li>前期总投入：{currency.format(result.upfront)}</li>
           <li>年租金收入（按入住率）：{currency.format(result.grossRent)}</li>
           <li>年度运营成本（不含贷款）：{currency.format(result.totalExpenses)}</li>
-          <li>年度贷款还款（{result.repaymentTypeLabel}）：{currency.format(result.annualMortgage)}</li>
-          <li>{result.repaymentFrequencyLabel}还款额：{currency.format(result.periodRepayment)}</li>
+          <li>年度贷款还款（{result.repaymentTypeLabel}）：{currencyWithCents.format(result.annualMortgage)}</li>
+          <li>{result.repaymentFrequencyLabel}还款额：{currencyWithCents.format(result.periodRepayment)}</li>
           <li>（按每期还款四舍五入到分后汇总年还款）</li>
           <li>年度现金流：<strong>{currency.format(result.annualCashflow)}</strong></li>
           <li>毛租金回报率：{result.grossYieldPct.toFixed(2)}%</li>
