@@ -77,18 +77,28 @@ function stampDuty(state: State, price: number, propertyUse: PropertyUse): { fin
   return { final: Math.max(base - concession, 0), concession };
 }
 
-function annualPrincipalInterestRepayment(principal: number, annualRatePct: number, years: number): number {
-  const months = years * 12;
-  const monthlyRate = annualRatePct / 100 / 12;
-  if (principal <= 0 || months <= 0) return 0;
-  if (monthlyRate === 0) return principal / years;
-  const monthlyPayment = (principal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -months));
-  return monthlyPayment * 12;
+function roundToCents(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
-function annualInterestOnlyRepayment(principal: number, annualRatePct: number): number {
+function periodicPrincipalInterestRepayment(
+  principal: number,
+  annualRatePct: number,
+  years: number,
+  periodsPerYear: number
+): number {
+  const periods = years * periodsPerYear;
+  const periodicRate = annualRatePct / 100 / periodsPerYear;
+  if (principal <= 0 || periods <= 0) return 0;
+  if (periodicRate === 0) return roundToCents(principal / periods);
+
+  const payment = (principal * periodicRate) / (1 - Math.pow(1 + periodicRate, -periods));
+  return roundToCents(payment);
+}
+
+function periodicInterestOnlyRepayment(principal: number, annualRatePct: number, periodsPerYear: number): number {
   if (principal <= 0) return 0;
-  return principal * (annualRatePct / 100);
+  return roundToCents((principal * (annualRatePct / 100)) / periodsPerYear);
 }
 
 export default function HomePage() {
@@ -120,14 +130,13 @@ export default function HomePage() {
     const managementFee = grossRent * (managementPct / 100);
     const totalExpenses = managementFee + maintenanceAnnual + councilAnnual + insuranceAnnual + strataAnnual;
 
-    const annualMortgage =
-      repaymentType === 'interestOnly'
-        ? annualInterestOnlyRepayment(loan, interestRate)
-        : annualPrincipalInterestRepayment(loan, interestRate, loanTermYears);
-    const annualCashflow = grossRent - totalExpenses - annualMortgage;
-
     const periodsPerYear = repaymentFrequency === 'weekly' ? 52 : repaymentFrequency === 'fortnightly' ? 26 : 12;
-    const periodRepayment = annualMortgage / periodsPerYear;
+    const periodRepayment =
+      repaymentType === 'interestOnly'
+        ? periodicInterestOnlyRepayment(loan, interestRate, periodsPerYear)
+        : periodicPrincipalInterestRepayment(loan, interestRate, loanTermYears, periodsPerYear);
+    const annualMortgage = periodRepayment * periodsPerYear;
+    const annualCashflow = grossRent - totalExpenses - annualMortgage;
 
     const grossYieldPct = purchasePrice > 0 ? (grossRent / purchasePrice) * 100 : 0;
     const netYieldPct = purchasePrice > 0 ? ((grossRent - totalExpenses) / purchasePrice) * 100 : 0;
@@ -285,6 +294,7 @@ export default function HomePage() {
           <li>年度运营成本（不含贷款）：{currency.format(result.totalExpenses)}</li>
           <li>年度贷款还款（{result.repaymentTypeLabel}）：{currency.format(result.annualMortgage)}</li>
           <li>{result.repaymentFrequencyLabel}还款额：{currency.format(result.periodRepayment)}</li>
+          <li>（按每期还款四舍五入到分后汇总年还款）</li>
           <li>年度现金流：<strong>{currency.format(result.annualCashflow)}</strong></li>
           <li>毛租金回报率：{result.grossYieldPct.toFixed(2)}%</li>
           <li>净租金回报率：{result.netYieldPct.toFixed(2)}%</li>
