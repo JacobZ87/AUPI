@@ -67,3 +67,61 @@ select {
   display: grid;
   gap: 8px;
 }
+
+.chartCard {
+  margin-top: 14px;
+  border: 1px solid #d8e0ef;
+  border-radius: 10px;
+  padding: 12px;
+  background: #f9fbff;
+}
+
+.chartCard h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: #ffffff;
+  border: 1px solid #d8e0ef;
+  border-radius: 8px;
+}
+
+.axis {
+  stroke: #9fb0cf;
+  stroke-width: 1;
+}
+
+.lineProperty,
+.lineLvr {
+  fill: none;
+  stroke-width: 2.5;
+}
+
+.lineProperty {
+  stroke: #1f6feb;
+}
+
+.lineLvr {
+  stroke: #f08c00;
+}
+
+.tick {
+  fill: #4a5774;
+  font-size: 11px;
+}
+
+.labelProperty {
+  fill: #1f6feb;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.labelLvr {
+  fill: #f08c00;
+  font-size: 12px;
+  font-weight: 600;
+}

@@ -108,6 +108,34 @@ function periodicInterestOnlyRepayment(principal: number, annualRatePct: number,
   return roundToCents((principal * (annualRatePct / 100)) / periodsPerYear);
 }
 
+
+function loanBalanceAtYear(
+  principal: number,
+  annualRatePct: number,
+  years: number,
+  periodsPerYear: number,
+  repaymentType: RepaymentType,
+  periodRepayment: number,
+  year: number
+): number {
+  if (principal <= 0) return 0;
+  if (repaymentType === 'interestOnly') return principal;
+
+  const totalPeriods = years * periodsPerYear;
+  const paidPeriods = Math.min(year * periodsPerYear, totalPeriods);
+  const periodicRate = annualRatePct / 100 / periodsPerYear;
+
+  let balance = principal;
+  for (let i = 0; i < paidPeriods; i += 1) {
+    const interest = balance * periodicRate;
+    const principalPaid = Math.max(periodRepayment - interest, 0);
+    balance = Math.max(balance - principalPaid, 0);
+    if (balance === 0) break;
+  }
+
+  return balance;
+}
+
 export default function HomePage() {
   const [purchasePrice, setPurchasePrice] = useState(850000);
   const [depositPct, setDepositPct] = useState(20);
@@ -153,6 +181,23 @@ export default function HomePage() {
     const nextYearExpenses = totalExpenses * (1 + cpiAnnualGrowthPct / 100);
     const nextYearCashflow = nextYearRent - nextYearExpenses - annualMortgage;
 
+    const projectionYears = Math.min(Math.max(loanTermYears, 1), 15);
+    const chartData = Array.from({ length: projectionYears + 1 }, (_, year) => {
+      const propertyValue = purchasePrice * Math.pow(1 + propertyValueAnnualGrowthPct / 100, year);
+      const loanBalance = loanBalanceAtYear(
+        loan,
+        interestRate,
+        loanTermYears,
+        periodsPerYear,
+        repaymentType,
+        periodRepayment,
+        year
+      );
+      const lvr = propertyValue > 0 ? (loanBalance / propertyValue) * 100 : 0;
+
+      return { year, propertyValue, lvr };
+    });
+
     const grossYieldPct = purchasePrice > 0 ? (grossRent / purchasePrice) * 100 : 0;
     const netYieldPct = purchasePrice > 0 ? ((grossRent - totalExpenses) / purchasePrice) * 100 : 0;
     const lvrPct = purchasePrice > 0 ? (loan / purchasePrice) * 100 : 0;
@@ -177,7 +222,8 @@ export default function HomePage() {
       nextYearPropertyValue,
       nextYearRent,
       nextYearExpenses,
-      nextYearCashflow
+      nextYearCashflow,
+      chartData
     };
   }, [
     purchasePrice,
@@ -200,6 +246,31 @@ export default function HomePage() {
     repaymentType,
     repaymentFrequency
   ]);
+
+  const chartWidth = 760;
+  const chartHeight = 320;
+  const padding = { top: 20, right: 56, bottom: 36, left: 70 };
+  const plotWidth = chartWidth - padding.left - padding.right;
+  const plotHeight = chartHeight - padding.top - padding.bottom;
+
+  const maxPropertyValue = Math.max(...result.chartData.map((d) => d.propertyValue), 1);
+  const maxLvr = Math.max(...result.chartData.map((d) => d.lvr), 1);
+
+  const propertyPoints = result.chartData
+    .map((d, i) => {
+      const x = padding.left + (i / Math.max(result.chartData.length - 1, 1)) * plotWidth;
+      const y = padding.top + (1 - d.propertyValue / maxPropertyValue) * plotHeight;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(' ');
+
+  const lvrPoints = result.chartData
+    .map((d, i) => {
+      const x = padding.left + (i / Math.max(result.chartData.length - 1, 1)) * plotWidth;
+      const y = padding.top + (1 - d.lvr / maxLvr) * plotHeight;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(' ');
 
   return (
     <main className="container">
@@ -340,6 +411,39 @@ export default function HomePage() {
           <li>预计下一年运营成本：{currency.format(result.nextYearExpenses)}</li>
           <li>预计下一年现金流：<strong>{currency.format(result.nextYearCashflow)}</strong></li>
         </ul>
+
+        <div className="chartCard">
+          <h3>房产价值与LVR走势（X轴：年份）</h3>
+          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="chart" role="img" aria-label="房产价值与LVR双轴图表">
+            <line x1={padding.left} y1={padding.top} x2={padding.left} y2={chartHeight - padding.bottom} className="axis" />
+            <line x1={padding.left} y1={chartHeight - padding.bottom} x2={chartWidth - padding.right} y2={chartHeight - padding.bottom} className="axis" />
+            <line x1={chartWidth - padding.right} y1={padding.top} x2={chartWidth - padding.right} y2={chartHeight - padding.bottom} className="axis" />
+
+            <polyline points={propertyPoints} className="lineProperty" />
+            <polyline points={lvrPoints} className="lineLvr" />
+
+            <text x={padding.left} y={padding.top - 6} className="labelProperty">左Y  房产价值 (AUD)</text>
+            <text x={chartWidth - padding.right} y={padding.top - 6} textAnchor="end" className="labelLvr">右Y  LVR (%)</text>
+
+            <text x={padding.left} y={chartHeight - 8} className="tick">0</text>
+            <text x={chartWidth - padding.right} y={chartHeight - 8} textAnchor="end" className="tick">{result.chartData.length - 1} 年</text>
+            <text x={padding.left - 8} y={padding.top + 4} textAnchor="end" className="tick">{currency.format(maxPropertyValue)}</text>
+            <text x={chartWidth - padding.right + 8} y={padding.top + 4} className="tick">{maxLvr.toFixed(0)}%</text>
+
+            {result.chartData.map((d, i) => {
+              if (i === 0 || i === result.chartData.length - 1 || i % 5 === 0) {
+                const x = padding.left + (i / Math.max(result.chartData.length - 1, 1)) * plotWidth;
+                return (
+                  <text key={d.year} x={x} y={chartHeight - padding.bottom + 16} textAnchor="middle" className="tick">
+                    {d.year}
+                  </text>
+                );
+              }
+              return null;
+            })}
+          </svg>
+          <p className="hint">蓝线=房产价值（左轴），橙线=LVR（右轴）。</p>
+        </div>
         <p className="hint" style={{ marginTop: 12 }}>
           注：QLD 自住按 QRO home concession 档位估算；VIC {">"} 960,000 按 SRO 常见一般税率 5.5% 全额估算；NSW/VIC 未包含首置/特殊减免政策。
         </p>
