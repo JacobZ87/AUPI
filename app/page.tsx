@@ -6,6 +6,7 @@ type State = 'NSW' | 'VIC' | 'QLD';
 type PropertyUse = 'owner' | 'investor';
 type RepaymentType = 'principalInterest' | 'interestOnly';
 type RepaymentFrequency = 'weekly' | 'fortnightly' | 'monthly';
+type RightAxisMetric = 'lvr' | 'freeCashflow' | 'leveredNetYield' | 'leveredGrossYield';
 
 const currency = new Intl.NumberFormat('en-AU', {
   style: 'currency',
@@ -222,6 +223,7 @@ export default function HomePage() {
   const [repaymentType, setRepaymentType] = useState<RepaymentType>('principalInterest');
   const [repaymentFrequency, setRepaymentFrequency] = useState<RepaymentFrequency>('monthly');
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [rightAxisMetric, setRightAxisMetric] = useState<RightAxisMetric>('lvr');
 
   const result = useMemo(() => {
     const deposit = purchasePrice * (depositPct / 100);
@@ -252,14 +254,24 @@ export default function HomePage() {
     const growthFactor = 1 + propertyValueAnnualGrowthPct / 100;
     const periodicRate = interestRate / 100 / periodsPerYear;
 
-    const chartData: Array<{ year: number; propertyValue: number; lvr: number }> = [];
+    const chartData: Array<{
+      year: number;
+      propertyValue: number;
+      lvr: number;
+      freeCashflow: number;
+      leveredGrossYield: number;
+      leveredNetYield: number;
+    }> = [];
     let runningPropertyValue = purchasePrice;
     let runningLoanBalance = loan;
 
     chartData.push({
       year: 0,
       propertyValue: runningPropertyValue,
-      lvr: runningPropertyValue > 0 ? (runningLoanBalance / runningPropertyValue) * 100 : 0
+      lvr: runningPropertyValue > 0 ? (runningLoanBalance / runningPropertyValue) * 100 : 0,
+      freeCashflow: annualCashflow,
+      leveredGrossYield: upfront > 0 ? (grossRent / upfront) * 100 : 0,
+      leveredNetYield: upfront > 0 ? ((grossRent - totalExpenses) / upfront) * 100 : 0
     });
 
     for (let year = 1; year <= projectionYears; year += 1) {
@@ -269,10 +281,18 @@ export default function HomePage() {
         runningLoanBalance = balanceAfterPeriods(runningLoanBalance, periodicRate, exactPeriodRepayment, periodsPerYear);
       }
 
+      const yearRent = grossRent * Math.pow(1 + rentAnnualGrowthPct / 100, year);
+      const yearExpenses = totalExpenses * Math.pow(1 + cpiAnnualGrowthPct / 100, year);
+      const yearFreeCashflow = yearRent - yearExpenses - annualMortgage;
+      const equity = Math.max(runningPropertyValue - runningLoanBalance, 0);
+
       chartData.push({
         year,
         propertyValue: runningPropertyValue,
-        lvr: runningPropertyValue > 0 ? (runningLoanBalance / runningPropertyValue) * 100 : 0
+        lvr: runningPropertyValue > 0 ? (runningLoanBalance / runningPropertyValue) * 100 : 0,
+        freeCashflow: yearFreeCashflow,
+        leveredGrossYield: equity > 0 ? (yearRent / equity) * 100 : 0,
+        leveredNetYield: equity > 0 ? ((yearRent - yearExpenses) / equity) * 100 : 0
       });
     }
 
@@ -363,7 +383,37 @@ export default function HomePage() {
   const plotHeight = chartHeight - padding.top - padding.bottom;
 
   const maxPropertyValue = Math.max(...result.chartData.map((d) => d.propertyValue), 1);
-  const maxLvr = Math.max(...result.chartData.map((d) => d.lvr), 1);
+  const rightMetricConfig: Record<
+    RightAxisMetric,
+    { label: string; value: (d: (typeof result.chartData)[number]) => number; format: (v: number) => string }
+  > = {
+    lvr: {
+      label: 'LVR (%)',
+      value: (d) => d.lvr,
+      format: (v) => `${v.toFixed(1)}%`
+    },
+    freeCashflow: {
+      label: '自由现金流 (AUD/年)',
+      value: (d) => d.freeCashflow,
+      format: (v) => currency.format(v)
+    },
+    leveredGrossYield: {
+      label: '杠杆毛租金回报率 (%)',
+      value: (d) => d.leveredGrossYield,
+      format: (v) => `${v.toFixed(2)}%`
+    },
+    leveredNetYield: {
+      label: '杠杆净租金回报率 (%)',
+      value: (d) => d.leveredNetYield,
+      format: (v) => `${v.toFixed(2)}%`
+    }
+  };
+
+  const rightMetric = rightMetricConfig[rightAxisMetric];
+  const rightValues = result.chartData.map((d) => rightMetric.value(d));
+  const maxRightMetric = Math.max(...rightValues, 1);
+  const minRightMetric = Math.min(...rightValues, 0);
+  const rightRange = Math.max(maxRightMetric - minRightMetric, 1e-9);
 
   const propertyPoints = result.chartData
     .map((d, i) => {
@@ -373,10 +423,11 @@ export default function HomePage() {
     })
     .join(' ');
 
-  const lvrPoints = result.chartData
+  const rightPoints = result.chartData
     .map((d, i) => {
       const x = padding.left + (i / Math.max(result.chartData.length - 1, 1)) * plotWidth;
-      const y = padding.top + (1 - d.lvr / maxLvr) * plotHeight;
+      const val = rightMetric.value(d);
+      const y = padding.top + (1 - (val - minRightMetric) / rightRange) * plotHeight;
       return `${x.toFixed(2)},${y.toFixed(2)}`;
     })
     .join(' ');
@@ -389,11 +440,12 @@ export default function HomePage() {
 
   const activeX = xForIndex(activeIndex);
   const activePropertyY = padding.top + (1 - activePoint.propertyValue / maxPropertyValue) * plotHeight;
-  const activeLvrY = padding.top + (1 - activePoint.lvr / maxLvr) * plotHeight;
+  const activeRightMetricValue = rightMetric.value(activePoint);
+  const activeRightY = padding.top + (1 - (activeRightMetricValue - minRightMetric) / rightRange) * plotHeight;
 
   const clampY = (y: number): number => Math.min(Math.max(y, padding.top + 12), chartHeight - padding.bottom - 8);
   const activePropertyLabelY = clampY(activePropertyY);
-  const activeLvrLabelY = clampY(activeLvrY);
+  const activeRightLabelY = clampY(activeRightY);
 
   const handleChartMouseMove = (e: React.MouseEvent<SVGSVGElement>): void => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -549,7 +601,21 @@ export default function HomePage() {
         </ul>
 
         <div className="chartCard">
-          <h3>房产价值与LVR走势（X轴：年份）</h3>
+          <h3>房产价值与右轴指标走势（X轴：年份）</h3>
+          <div className="tabs" role="tablist" aria-label="右Y轴指标切换">
+            <button className={rightAxisMetric === 'lvr' ? 'tab active' : 'tab'} onClick={() => setRightAxisMetric('lvr')}>
+              LVR
+            </button>
+            <button className={rightAxisMetric === 'freeCashflow' ? 'tab active' : 'tab'} onClick={() => setRightAxisMetric('freeCashflow')}>
+              自由现金流
+            </button>
+            <button className={rightAxisMetric === 'leveredGrossYield' ? 'tab active' : 'tab'} onClick={() => setRightAxisMetric('leveredGrossYield')}>
+              杠杆毛租金回报率
+            </button>
+            <button className={rightAxisMetric === 'leveredNetYield' ? 'tab active' : 'tab'} onClick={() => setRightAxisMetric('leveredNetYield')}>
+              杠杆净租金回报率
+            </button>
+          </div>
           <svg
             viewBox={`0 0 ${chartWidth} ${chartHeight}`}
             className="chart"
@@ -563,22 +629,22 @@ export default function HomePage() {
             <line x1={chartWidth - padding.right} y1={padding.top} x2={chartWidth - padding.right} y2={chartHeight - padding.bottom} className="axis" />
 
             <polyline points={propertyPoints} className="lineProperty" />
-            <polyline points={lvrPoints} className="lineLvr" />
+            <polyline points={rightPoints} className="lineLvr" />
 
             <text x={padding.left} y={padding.top - 6} className="labelProperty">左Y  房产价值 (AUD)</text>
-            <text x={chartWidth - padding.right} y={padding.top - 6} textAnchor="end" className="labelLvr">右Y  LVR (%)</text>
+            <text x={chartWidth - padding.right} y={padding.top - 6} textAnchor="end" className="labelLvr">右Y  {rightMetric.label}</text>
 
             <line x1={activeX} y1={padding.top} x2={activeX} y2={chartHeight - padding.bottom} className="guide" />
             <circle cx={activeX} cy={activePropertyY} r={4} className="markerProperty" />
-            <circle cx={activeX} cy={activeLvrY} r={4} className="markerLvr" />
+            <circle cx={activeX} cy={activeRightY} r={4} className="markerLvr" />
 
             <text x={padding.left} y={chartHeight - 8} className="tick">0</text>
             <text x={chartWidth - padding.right} y={chartHeight - 8} textAnchor="end" className="tick">30 年</text>
             <text x={padding.left - 8} y={activePropertyLabelY} textAnchor="end" className="tick">
               {currency.format(activePoint.propertyValue)}
             </text>
-            <text x={chartWidth - padding.right + 8} y={activeLvrLabelY} className="tick">
-              {activePoint.lvr.toFixed(1)}%
+            <text x={chartWidth - padding.right + 8} y={activeRightLabelY} className="tick">
+              {rightMetric.format(activeRightMetricValue)}
             </text>
             <text x={activeX} y={padding.top + 16} textAnchor="middle" className="tick">第 {activePoint.year} 年</text>
 
@@ -594,7 +660,7 @@ export default function HomePage() {
               return null;
             })}
           </svg>
-          <p className="hint">蓝线=房产价值（左轴），橙线=LVR（右轴）。将鼠标移动到图表上可查看对应年份动态轴值（固定30年）。</p>
+          <p className="hint">蓝线=房产价值（左轴），橙线=右轴选中指标。可通过选项卡切换右Y轴，并在悬停时查看动态轴值（固定30年）。</p>
         </div>
         <p className="hint" style={{ marginTop: 12 }}>
           注：QLD 自住按 QRO home concession 档位估算；VIC {">"} 960,000 按 SRO 常见一般税率 5.5% 全额估算；NSW/VIC 未包含首置/特殊减免政策。

@@ -81,6 +81,30 @@ select {
   font-size: 16px;
 }
 
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.tab {
+  border: 1px solid #b9c7e1;
+  background: #ffffff;
+  color: #264070;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tab.active {
+  border-color: #1f6feb;
+  background: #e9f1ff;
+  color: #1f6feb;
+  font-weight: 600;
+}
+
 .chart {
   width: 100%;
   height: auto;
