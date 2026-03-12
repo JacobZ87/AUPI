@@ -121,6 +121,9 @@ export default function HomePage() {
   const [insuranceAnnual, setInsuranceAnnual] = useState(1300);
   const [strataAnnual, setStrataAnnual] = useState(1600);
   const [otherBuyingCosts, setOtherBuyingCosts] = useState(3500);
+  const [cpiAnnualGrowthPct, setCpiAnnualGrowthPct] = useState(3);
+  const [rentAnnualGrowthPct, setRentAnnualGrowthPct] = useState(4);
+  const [propertyValueAnnualGrowthPct, setPropertyValueAnnualGrowthPct] = useState(5);
   const [state, setState] = useState<State>('NSW');
   const [propertyUse, setPropertyUse] = useState<PropertyUse>('investor');
   const [repaymentType, setRepaymentType] = useState<RepaymentType>('principalInterest');
@@ -145,6 +148,11 @@ export default function HomePage() {
     const annualMortgage = periodRepayment * periodsPerYear;
     const annualCashflow = grossRent - totalExpenses - annualMortgage;
 
+    const nextYearPropertyValue = purchasePrice * (1 + propertyValueAnnualGrowthPct / 100);
+    const nextYearRent = grossRent * (1 + rentAnnualGrowthPct / 100);
+    const nextYearExpenses = totalExpenses * (1 + cpiAnnualGrowthPct / 100);
+    const nextYearCashflow = nextYearRent - nextYearExpenses - annualMortgage;
+
     const grossYieldPct = purchasePrice > 0 ? (grossRent / purchasePrice) * 100 : 0;
     const netYieldPct = purchasePrice > 0 ? ((grossRent - totalExpenses) / purchasePrice) * 100 : 0;
     const lvrPct = purchasePrice > 0 ? (loan / purchasePrice) * 100 : 0;
@@ -165,7 +173,11 @@ export default function HomePage() {
       repaymentTypeLabel: repaymentType === 'interestOnly' ? '只还利息' : '等额本息',
       repaymentFrequencyLabel:
         repaymentFrequency === 'weekly' ? '每周' : repaymentFrequency === 'fortnightly' ? '每两周' : '每月',
-      periodRepayment
+      periodRepayment,
+      nextYearPropertyValue,
+      nextYearRent,
+      nextYearExpenses,
+      nextYearCashflow
     };
   }, [
     purchasePrice,
@@ -180,6 +192,9 @@ export default function HomePage() {
     insuranceAnnual,
     strataAnnual,
     otherBuyingCosts,
+    cpiAnnualGrowthPct,
+    rentAnnualGrowthPct,
+    propertyValueAnnualGrowthPct,
     state,
     propertyUse,
     repaymentType,
@@ -287,6 +302,21 @@ export default function HomePage() {
           其他购房成本 (AUD)
           <input type="number" value={otherBuyingCosts} onChange={(e) => setOtherBuyingCosts(Number(e.target.value) || 0)} />
         </label>
+
+        <label>
+          CPI 年涨幅 (%)
+          <input type="number" step="0.01" value={cpiAnnualGrowthPct} onChange={(e) => setCpiAnnualGrowthPct(Number(e.target.value) || 0)} />
+        </label>
+
+        <label>
+          租金年涨幅 (%)
+          <input type="number" step="0.01" value={rentAnnualGrowthPct} onChange={(e) => setRentAnnualGrowthPct(Number(e.target.value) || 0)} />
+        </label>
+
+        <label>
+          房产价值年涨幅 (%)
+          <input type="number" step="0.01" value={propertyValueAnnualGrowthPct} onChange={(e) => setPropertyValueAnnualGrowthPct(Number(e.target.value) || 0)} />
+        </label>
       </section>
 
       <section className="result">
@@ -305,6 +335,10 @@ export default function HomePage() {
           <li>年度现金流：<strong>{currency.format(result.annualCashflow)}</strong></li>
           <li>毛租金回报率：{result.grossYieldPct.toFixed(2)}%</li>
           <li>净租金回报率：{result.netYieldPct.toFixed(2)}%</li>
+          <li>预计下一年房产价值：{currency.format(result.nextYearPropertyValue)}</li>
+          <li>预计下一年租金收入：{currency.format(result.nextYearRent)}</li>
+          <li>预计下一年运营成本：{currency.format(result.nextYearExpenses)}</li>
+          <li>预计下一年现金流：<strong>{currency.format(result.nextYearCashflow)}</strong></li>
         </ul>
         <p className="hint" style={{ marginTop: 12 }}>
           注：QLD 自住按 QRO home concession 档位估算；VIC {">"} 960,000 按 SRO 常见一般税率 5.5% 全额估算；NSW/VIC 未包含首置/特殊减免政策。
