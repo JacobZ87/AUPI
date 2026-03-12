@@ -140,6 +140,67 @@ function balanceAfterPeriods(
   return balance;
 }
 
+
+function loanBalanceAtHorizon(
+  initialLoan: number,
+  repaymentType: RepaymentType,
+  periodicRate: number,
+  exactPeriodRepayment: number,
+  periodsPerYear: number,
+  loanTermYears: number,
+  horizonYears: number
+): number {
+  if (initialLoan <= 0) return 0;
+  if (repaymentType === 'interestOnly') return initialLoan;
+
+  const totalPeriods = Math.max(Math.floor(loanTermYears * periodsPerYear), 0);
+  const periodsToRun = Math.min(Math.floor(horizonYears * periodsPerYear), totalPeriods);
+  return balanceAfterPeriods(initialLoan, periodicRate, exactPeriodRepayment, periodsToRun);
+}
+
+function calculateIrr(cashflows: number[]): number | null {
+  if (cashflows.length < 2) return null;
+  const hasPositive = cashflows.some((v) => v > 0);
+  const hasNegative = cashflows.some((v) => v < 0);
+  if (!hasPositive || ! hasNegative)
+    return null;
+
+  const npv = (rate: number): number =>
+    cashflows.reduce((sum, cf, t) => sum + cf / Math.pow(1 + rate, t), 0);
+
+  let low = -0.99;
+  let high = 1.5;
+  let npvLow = npv(low);
+  let npvHigh = npv(high);
+
+  let expand = 0;
+  while (npvLow * npvHigh > 0 && expand < 30) {
+    high += 1;
+    npvHigh = npv(high);
+    expand += 1;
+  }
+
+  if (npvLow * npvHigh > 0) return null;
+
+  for (let i = 0; i < 100; i += 1) {
+    const mid = (low + high) / 2;
+    const npvMid = npv(mid);
+
+    if (Math.abs(npvMid) < 1e-7) return mid;
+
+    if (npvLow * npvMid <= 0) {
+      high = mid;
+      npvHigh = npvMid;
+    } else {
+      low = mid;
+      npvLow = npvMid;
+    }
+  }
+
+  return (low + high) / 2;
+}
+
+
 export default function HomePage() {
   const [purchasePrice, setPurchasePrice] = useState(850000);
   const [depositPct, setDepositPct] = useState(20);
@@ -215,6 +276,36 @@ export default function HomePage() {
       });
     }
 
+    const horizonYears = [10, 20, 30] as const;
+    const irrByHorizon = horizonYears.map((years) => {
+      const cashflows: number[] = [-upfront];
+
+      for (let year = 1; year <= years; year += 1) {
+        const rent = grossRent * Math.pow(1 + rentAnnualGrowthPct / 100, year);
+        const expenses = totalExpenses * Math.pow(1 + cpiAnnualGrowthPct / 100, year);
+        let yearlyCashflow = rent - expenses - annualMortgage;
+
+        if (year === years) {
+          const exitValue = purchasePrice * Math.pow(1 + propertyValueAnnualGrowthPct / 100, year);
+          const remainingLoan = loanBalanceAtHorizon(
+            loan,
+            repaymentType,
+            periodicRate,
+            exactPeriodRepayment,
+            periodsPerYear,
+            loanTermYears,
+            year
+          );
+          yearlyCashflow += exitValue - remainingLoan;
+        }
+
+        cashflows.push(yearlyCashflow);
+      }
+
+      const irr = calculateIrr(cashflows);
+      return { years, irr };
+    });
+
     const grossYieldPct = purchasePrice > 0 ? (grossRent / purchasePrice) * 100 : 0;
     const netYieldPct = purchasePrice > 0 ? ((grossRent - totalExpenses) / purchasePrice) * 100 : 0;
     const lvrPct = purchasePrice > 0 ? (loan / purchasePrice) * 100 : 0;
@@ -240,7 +331,8 @@ export default function HomePage() {
       nextYearRent,
       nextYearExpenses,
       nextYearCashflow,
-      chartData
+      chartData,
+      irrByHorizon
     };
   }, [
     purchasePrice,
@@ -448,6 +540,12 @@ export default function HomePage() {
           <li>预计下一年租金收入：{currency.format(result.nextYearRent)}</li>
           <li>预计下一年运营成本：{currency.format(result.nextYearExpenses)}</li>
           <li>预计下一年现金流：<strong>{currency.format(result.nextYearCashflow)}</strong></li>
+          {result.irrByHorizon.map((item) => (
+            <li key={item.years}>
+              {item.years}年期杠杆IRR：
+              <strong>{item.irr === null ? 'N/A' : `${(item.irr * 100).toFixed(2)}%`}</strong>
+            </li>
+          ))}
         </ul>
 
         <div className="chartCard">
