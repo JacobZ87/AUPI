@@ -108,29 +108,33 @@ function periodicInterestOnlyRepayment(principal: number, annualRatePct: number,
   return roundToCents((principal * (annualRatePct / 100)) / periodsPerYear);
 }
 
-
-function loanBalanceAtYear(
+function periodicPrincipalInterestRepaymentExact(
   principal: number,
   annualRatePct: number,
   years: number,
-  periodsPerYear: number,
-  repaymentType: RepaymentType,
-  periodRepayment: number,
-  year: number
+  periodsPerYear: number
 ): number {
-  if (principal <= 0) return 0;
-  if (repaymentType === 'interestOnly') return principal;
-
-  const totalPeriods = years * periodsPerYear;
-  const paidPeriods = Math.min(year * periodsPerYear, totalPeriods);
+  const periods = years * periodsPerYear;
   const periodicRate = annualRatePct / 100 / periodsPerYear;
+  if (principal <= 0 || periods <= 0) return 0;
+  if (periodicRate === 0) return principal / periods;
 
-  let balance = principal;
-  for (let i = 0; i < paidPeriods; i += 1) {
+  return (principal * periodicRate) / (1 - Math.pow(1 + periodicRate, -periods));
+}
+
+function balanceAfterPeriods(
+  startingBalance: number,
+  periodicRate: number,
+  periodRepayment: number,
+  periods: number
+): number {
+  let balance = Math.max(startingBalance, 0);
+
+  for (let i = 0; i < periods; i += 1) {
+    if (balance <= 0) return 0;
     const interest = balance * periodicRate;
     const principalPaid = Math.max(periodRepayment - interest, 0);
     balance = Math.max(balance - principalPaid, 0);
-    if (balance === 0) break;
   }
 
   return balance;
@@ -169,10 +173,11 @@ export default function HomePage() {
     const totalExpenses = managementFee + maintenanceAnnual + councilAnnual + insuranceAnnual + strataAnnual;
 
     const periodsPerYear = repaymentFrequency === 'weekly' ? 52 : repaymentFrequency === 'fortnightly' ? 26 : 12;
-    const periodRepayment =
+    const exactPeriodRepayment =
       repaymentType === 'interestOnly'
-        ? periodicInterestOnlyRepayment(loan, interestRate, periodsPerYear)
-        : periodicPrincipalInterestRepayment(loan, interestRate, loanTermYears, periodsPerYear);
+        ? (loan * (interestRate / 100)) / periodsPerYear
+        : periodicPrincipalInterestRepaymentExact(loan, interestRate, loanTermYears, periodsPerYear);
+    const periodRepayment = roundToCents(exactPeriodRepayment);
     const annualMortgage = periodRepayment * periodsPerYear;
     const annualCashflow = grossRent - totalExpenses - annualMortgage;
 
@@ -181,22 +186,33 @@ export default function HomePage() {
     const nextYearExpenses = totalExpenses * (1 + cpiAnnualGrowthPct / 100);
     const nextYearCashflow = nextYearRent - nextYearExpenses - annualMortgage;
 
-    const projectionYears = Math.min(Math.max(loanTermYears, 1), 15);
-    const chartData = Array.from({ length: projectionYears + 1 }, (_, year) => {
-      const propertyValue = purchasePrice * Math.pow(1 + propertyValueAnnualGrowthPct / 100, year);
-      const loanBalance = loanBalanceAtYear(
-        loan,
-        interestRate,
-        loanTermYears,
-        periodsPerYear,
-        repaymentType,
-        periodRepayment,
-        year
-      );
-      const lvr = propertyValue > 0 ? (loanBalance / propertyValue) * 100 : 0;
+    const projectionYears = Math.min(Math.max(Math.floor(loanTermYears), 1), 15);
+    const growthFactor = 1 + propertyValueAnnualGrowthPct / 100;
+    const periodicRate = interestRate / 100 / periodsPerYear;
 
-      return { year, propertyValue, lvr };
+    const chartData: Array<{ year: number; propertyValue: number; lvr: number }> = [];
+    let runningPropertyValue = purchasePrice;
+    let runningLoanBalance = loan;
+
+    chartData.push({
+      year: 0,
+      propertyValue: runningPropertyValue,
+      lvr: runningPropertyValue > 0 ? (runningLoanBalance / runningPropertyValue) * 100 : 0
     });
+
+    for (let year = 1; year <= projectionYears; year += 1) {
+      runningPropertyValue *= growthFactor;
+
+      if (repaymentType === 'principalInterest') {
+        runningLoanBalance = balanceAfterPeriods(runningLoanBalance, periodicRate, exactPeriodRepayment, periodsPerYear);
+      }
+
+      chartData.push({
+        year,
+        propertyValue: runningPropertyValue,
+        lvr: runningPropertyValue > 0 ? (runningLoanBalance / runningPropertyValue) * 100 : 0
+      });
+    }
 
     const grossYieldPct = purchasePrice > 0 ? (grossRent / purchasePrice) * 100 : 0;
     const netYieldPct = purchasePrice > 0 ? ((grossRent - totalExpenses) / purchasePrice) * 100 : 0;
