@@ -125,3 +125,18 @@ select {
   font-size: 12px;
   font-weight: 600;
 }
+
+
+.guide {
+  stroke: #94a3b8;
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.markerProperty {
+  fill: #1f6feb;
+}
+
+.markerLvr {
+  fill: #f08c00;
+}

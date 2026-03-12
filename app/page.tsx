@@ -160,6 +160,7 @@ export default function HomePage() {
   const [propertyUse, setPropertyUse] = useState<PropertyUse>('investor');
   const [repaymentType, setRepaymentType] = useState<RepaymentType>('principalInterest');
   const [repaymentFrequency, setRepaymentFrequency] = useState<RepaymentFrequency>('monthly');
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const result = useMemo(() => {
     const deposit = purchasePrice * (depositPct / 100);
@@ -186,7 +187,7 @@ export default function HomePage() {
     const nextYearExpenses = totalExpenses * (1 + cpiAnnualGrowthPct / 100);
     const nextYearCashflow = nextYearRent - nextYearExpenses - annualMortgage;
 
-    const projectionYears = Math.min(Math.max(Math.floor(loanTermYears), 1), 15);
+    const projectionYears = 30;
     const growthFactor = 1 + propertyValueAnnualGrowthPct / 100;
     const periodicRate = interestRate / 100 / periodsPerYear;
 
@@ -287,6 +288,23 @@ export default function HomePage() {
       return `${x.toFixed(2)},${y.toFixed(2)}`;
     })
     .join(' ');
+
+  const activeIndex = hoverIndex ?? result.chartData.length - 1;
+  const activePoint = result.chartData[activeIndex];
+
+  const xForIndex = (idx: number): number =>
+    padding.left + (idx / Math.max(result.chartData.length - 1, 1)) * plotWidth;
+
+  const activeX = xForIndex(activeIndex);
+  const activePropertyY = padding.top + (1 - activePoint.propertyValue / maxPropertyValue) * plotHeight;
+  const activeLvrY = padding.top + (1 - activePoint.lvr / maxLvr) * plotHeight;
+
+  const handleChartMouseMove = (e: React.MouseEvent<SVGSVGElement>): void => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const relativeX = Math.min(Math.max(e.clientX - rect.left - padding.left, 0), plotWidth);
+    const idx = Math.round((relativeX / Math.max(plotWidth, 1)) * Math.max(result.chartData.length - 1, 1));
+    setHoverIndex(idx);
+  };
 
   return (
     <main className="container">
@@ -430,7 +448,14 @@ export default function HomePage() {
 
         <div className="chartCard">
           <h3>房产价值与LVR走势（X轴：年份）</h3>
-          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="chart" role="img" aria-label="房产价值与LVR双轴图表">
+          <svg
+            viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+            className="chart"
+            role="img"
+            aria-label="房产价值与LVR双轴图表"
+            onMouseMove={handleChartMouseMove}
+            onMouseLeave={() => setHoverIndex(null)}
+          >
             <line x1={padding.left} y1={padding.top} x2={padding.left} y2={chartHeight - padding.bottom} className="axis" />
             <line x1={padding.left} y1={chartHeight - padding.bottom} x2={chartWidth - padding.right} y2={chartHeight - padding.bottom} className="axis" />
             <line x1={chartWidth - padding.right} y1={padding.top} x2={chartWidth - padding.right} y2={chartHeight - padding.bottom} className="axis" />
@@ -441,10 +466,15 @@ export default function HomePage() {
             <text x={padding.left} y={padding.top - 6} className="labelProperty">左Y  房产价值 (AUD)</text>
             <text x={chartWidth - padding.right} y={padding.top - 6} textAnchor="end" className="labelLvr">右Y  LVR (%)</text>
 
+            <line x1={activeX} y1={padding.top} x2={activeX} y2={chartHeight - padding.bottom} className="guide" />
+            <circle cx={activeX} cy={activePropertyY} r={4} className="markerProperty" />
+            <circle cx={activeX} cy={activeLvrY} r={4} className="markerLvr" />
+
             <text x={padding.left} y={chartHeight - 8} className="tick">0</text>
-            <text x={chartWidth - padding.right} y={chartHeight - 8} textAnchor="end" className="tick">{result.chartData.length - 1} 年</text>
-            <text x={padding.left - 8} y={padding.top + 4} textAnchor="end" className="tick">{currency.format(maxPropertyValue)}</text>
-            <text x={chartWidth - padding.right + 8} y={padding.top + 4} className="tick">{maxLvr.toFixed(0)}%</text>
+            <text x={chartWidth - padding.right} y={chartHeight - 8} textAnchor="end" className="tick">30 年</text>
+            <text x={padding.left - 8} y={padding.top + 4} textAnchor="end" className="tick">{currency.format(activePoint.propertyValue)}</text>
+            <text x={chartWidth - padding.right + 8} y={padding.top + 4} className="tick">{activePoint.lvr.toFixed(1)}%</text>
+            <text x={activeX} y={padding.top + 16} textAnchor="middle" className="tick">第 {activePoint.year} 年</text>
 
             {result.chartData.map((d, i) => {
               if (i === 0 || i === result.chartData.length - 1 || i % 5 === 0) {
@@ -458,7 +488,7 @@ export default function HomePage() {
               return null;
             })}
           </svg>
-          <p className="hint">蓝线=房产价值（左轴），橙线=LVR（右轴）。</p>
+          <p className="hint">蓝线=房产价值（左轴），橙线=LVR（右轴）。将鼠标移动到图表上可查看对应年份动态轴值（固定30年）。</p>
         </div>
         <p className="hint" style={{ marginTop: 12 }}>
           注：QLD 自住按 QRO home concession 档位估算；VIC {">"} 960,000 按 SRO 常见一般税率 5.5% 全额估算；NSW/VIC 未包含首置/特殊减免政策。
