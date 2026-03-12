@@ -26,8 +26,7 @@ function baseStampDuty(state: State, price: number): number {
       if (price <= 25000) return price * 0.014;
       if (price <= 130000) return 350 + (price - 25000) * 0.024;
       if (price <= 960000) return 2870 + (price - 130000) * 0.06;
-      if (price <= 2000000) return 52670 + (price - 960000) * 0.055;
-      return 110000 + (price - 2000000) * 0.065;
+      return price * 0.055;
     case 'QLD':
       if (price <= 5000) return 0;
       if (price <= 75000) return (price - 5000) * 0.015;
@@ -250,7 +249,7 @@ export default function HomePage() {
           <li>净租金回报率：{result.netYieldPct.toFixed(2)}%</li>
         </ul>
         <p className="hint" style={{ marginTop: 12 }}>
-          注：QLD 自住按 QRO home concession 档位估算；NSW/VIC 当前按一般住宅印花税（未包含首置/特殊减免政策）。
+          注：QLD 自住按 QRO home concession 档位估算；VIC > 960,000 按 SRO 常见一般税率 5.5% 全额估算；NSW/VIC 未包含首置/特殊减免政策。
         </p>
       </section>
     </main>
