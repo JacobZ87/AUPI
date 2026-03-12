@@ -249,7 +249,7 @@ export default function HomePage() {
           <li>净租金回报率：{result.netYieldPct.toFixed(2)}%</li>
         </ul>
         <p className="hint" style={{ marginTop: 12 }}>
-          注：QLD 自住按 QRO home concession 档位估算；VIC > 960,000 按 SRO 常见一般税率 5.5% 全额估算；NSW/VIC 未包含首置/特殊减免政策。
+          注：QLD 自住按 QRO home concession 档位估算；VIC {">"} 960,000 按 SRO 常见一般税率 5.5% 全额估算；NSW/VIC 未包含首置/特殊减免政策。
         </p>
       </section>
     </main>
