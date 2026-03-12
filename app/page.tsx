@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 
 type State = 'NSW' | 'VIC' | 'QLD';
 type PropertyUse = 'owner' | 'investor';
+type RepaymentType = 'principalInterest' | 'interestOnly';
 
 const currency = new Intl.NumberFormat('en-AU', {
   style: 'currency',
@@ -75,13 +76,18 @@ function stampDuty(state: State, price: number, propertyUse: PropertyUse): { fin
   return { final: Math.max(base - concession, 0), concession };
 }
 
-function annualRepayment(principal: number, annualRatePct: number, years: number): number {
+function annualPrincipalInterestRepayment(principal: number, annualRatePct: number, years: number): number {
   const months = years * 12;
   const monthlyRate = annualRatePct / 100 / 12;
   if (principal <= 0 || months <= 0) return 0;
   if (monthlyRate === 0) return principal / years;
   const monthlyPayment = (principal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -months));
   return monthlyPayment * 12;
+}
+
+function annualInterestOnlyRepayment(principal: number, annualRatePct: number): number {
+  if (principal <= 0) return 0;
+  return principal * (annualRatePct / 100);
 }
 
 export default function HomePage() {
@@ -99,6 +105,7 @@ export default function HomePage() {
   const [otherBuyingCosts, setOtherBuyingCosts] = useState(3500);
   const [state, setState] = useState<State>('NSW');
   const [propertyUse, setPropertyUse] = useState<PropertyUse>('investor');
+  const [repaymentType, setRepaymentType] = useState<RepaymentType>('principalInterest');
 
   const result = useMemo(() => {
     const deposit = purchasePrice * (depositPct / 100);
@@ -111,7 +118,10 @@ export default function HomePage() {
     const managementFee = grossRent * (managementPct / 100);
     const totalExpenses = managementFee + maintenanceAnnual + councilAnnual + insuranceAnnual + strataAnnual;
 
-    const annualMortgage = annualRepayment(loan, interestRate, loanTermYears);
+    const annualMortgage =
+      repaymentType === 'interestOnly'
+        ? annualInterestOnlyRepayment(loan, interestRate)
+        : annualPrincipalInterestRepayment(loan, interestRate, loanTermYears);
     const annualCashflow = grossRent - totalExpenses - annualMortgage;
 
     const grossYieldPct = purchasePrice > 0 ? (grossRent / purchasePrice) * 100 : 0;
@@ -130,7 +140,8 @@ export default function HomePage() {
       annualCashflow,
       grossYieldPct,
       netYieldPct,
-      lvrPct
+      lvrPct,
+      repaymentTypeLabel: repaymentType === 'interestOnly' ? '只还利息' : '等额本息'
     };
   }, [
     purchasePrice,
@@ -146,7 +157,8 @@ export default function HomePage() {
     strataAnnual,
     otherBuyingCosts,
     state,
-    propertyUse
+    propertyUse,
+    repaymentType
   ]);
 
   return (
@@ -169,6 +181,15 @@ export default function HomePage() {
           <select value={propertyUse} onChange={(e) => setPropertyUse(e.target.value as PropertyUse)}>
             <option value="investor">投资</option>
             <option value="owner">自住</option>
+          </select>
+        </label>
+
+
+        <label>
+          还款方式
+          <select value={repaymentType} onChange={(e) => setRepaymentType(e.target.value as RepaymentType)}>
+            <option value="principalInterest">等额本息</option>
+            <option value="interestOnly">只还利息</option>
           </select>
         </label>
 
@@ -243,7 +264,7 @@ export default function HomePage() {
           <li>前期总投入：{currency.format(result.upfront)}</li>
           <li>年租金收入（按入住率）：{currency.format(result.grossRent)}</li>
           <li>年度运营成本（不含贷款）：{currency.format(result.totalExpenses)}</li>
-          <li>年度贷款还款：{currency.format(result.annualMortgage)}</li>
+          <li>年度贷款还款（{result.repaymentTypeLabel}）：{currency.format(result.annualMortgage)}</li>
           <li>年度现金流：<strong>{currency.format(result.annualCashflow)}</strong></li>
           <li>毛租金回报率：{result.grossYieldPct.toFixed(2)}%</li>
           <li>净租金回报率：{result.netYieldPct.toFixed(2)}%</li>
