@@ -16,18 +16,18 @@ function baseStampDuty(state: State, price: number): number {
 
   switch (state) {
     case 'NSW':
-      if (price <= 17000) return price * 0.0125;
-      if (price <= 36000) return 212 + (price - 17000) * 0.015;
-      if (price <= 97000) return 497 + (price - 36000) * 0.0175;
-      if (price <= 364000) return 1565 + (price - 97000) * 0.035;
-      if (price <= 1212000) return 10910 + (price - 364000) * 0.045;
-      return 49069 + (price - 1212000) * 0.055;
+      if (price <= 14000) return price * 0.0125;
+      if (price <= 30000) return 175 + (price - 14000) * 0.015;
+      if (price <= 81000) return 415 + (price - 30000) * 0.0175;
+      if (price <= 304000) return 1307 + (price - 81000) * 0.035;
+      if (price <= 1013000) return 9112 + (price - 304000) * 0.045;
+      return 41017 + (price - 1013000) * 0.055;
     case 'VIC':
       if (price <= 25000) return price * 0.014;
       if (price <= 130000) return 350 + (price - 25000) * 0.024;
       if (price <= 960000) return 2870 + (price - 130000) * 0.06;
       if (price <= 2000000) return 52670 + (price - 960000) * 0.055;
-      return 109870 + (price - 2000000) * 0.065;
+      return 110000 + (price - 2000000) * 0.065;
     case 'QLD':
       if (price <= 5000) return 0;
       if (price <= 75000) return (price - 5000) * 0.015;
@@ -58,12 +58,8 @@ function ownerOccupierConcession(state: State, price: number, baseDuty: number):
       return Math.max(baseDuty - homeDuty, 0);
     }
     case 'NSW':
-      if (price <= 800000) return Math.min(8000, baseDuty);
-      if (price <= 1000000) return Math.min(4000, baseDuty);
       return 0;
     case 'VIC':
-      if (price <= 750000) return Math.min(7000, baseDuty);
-      if (price <= 1000000) return Math.min(3500, baseDuty);
       return 0;
     default:
       return 0;
@@ -254,7 +250,7 @@ export default function HomePage() {
           <li>净租金回报率：{result.netYieldPct.toFixed(2)}%</li>
         </ul>
         <p className="hint" style={{ marginTop: 12 }}>
-          注：QLD 自住按 QRO 公布的 home concession 档位估算；NSW/VIC 仍为简化优惠模型，仅供初步测算。
+          注：QLD 自住按 QRO home concession 档位估算；NSW/VIC 当前按一般住宅印花税（未包含首置/特殊减免政策）。
         </p>
       </section>
     </main>
