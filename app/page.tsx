@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 type State = 'NSW' | 'VIC' | 'QLD';
 type PropertyUse = 'owner' | 'investor';
 type RepaymentType = 'principalInterest' | 'interestOnly';
+type RepaymentFrequency = 'weekly' | 'fortnightly' | 'monthly';
 
 const currency = new Intl.NumberFormat('en-AU', {
   style: 'currency',
@@ -106,6 +107,7 @@ export default function HomePage() {
   const [state, setState] = useState<State>('NSW');
   const [propertyUse, setPropertyUse] = useState<PropertyUse>('investor');
   const [repaymentType, setRepaymentType] = useState<RepaymentType>('principalInterest');
+  const [repaymentFrequency, setRepaymentFrequency] = useState<RepaymentFrequency>('monthly');
 
   const result = useMemo(() => {
     const deposit = purchasePrice * (depositPct / 100);
@@ -124,6 +126,9 @@ export default function HomePage() {
         : annualPrincipalInterestRepayment(loan, interestRate, loanTermYears);
     const annualCashflow = grossRent - totalExpenses - annualMortgage;
 
+    const periodsPerYear = repaymentFrequency === 'weekly' ? 52 : repaymentFrequency === 'fortnightly' ? 26 : 12;
+    const periodRepayment = annualMortgage / periodsPerYear;
+
     const grossYieldPct = purchasePrice > 0 ? (grossRent / purchasePrice) * 100 : 0;
     const netYieldPct = purchasePrice > 0 ? ((grossRent - totalExpenses) / purchasePrice) * 100 : 0;
     const lvrPct = purchasePrice > 0 ? (loan / purchasePrice) * 100 : 0;
@@ -141,7 +146,10 @@ export default function HomePage() {
       grossYieldPct,
       netYieldPct,
       lvrPct,
-      repaymentTypeLabel: repaymentType === 'interestOnly' ? '只还利息' : '等额本息'
+      repaymentTypeLabel: repaymentType === 'interestOnly' ? '只还利息' : '等额本息',
+      repaymentFrequencyLabel:
+        repaymentFrequency === 'weekly' ? '每周' : repaymentFrequency === 'fortnightly' ? '每两周' : '每月',
+      periodRepayment
     };
   }, [
     purchasePrice,
@@ -158,7 +166,8 @@ export default function HomePage() {
     otherBuyingCosts,
     state,
     propertyUse,
-    repaymentType
+    repaymentType,
+    repaymentFrequency
   ]);
 
   return (
@@ -190,6 +199,16 @@ export default function HomePage() {
           <select value={repaymentType} onChange={(e) => setRepaymentType(e.target.value as RepaymentType)}>
             <option value="principalInterest">等额本息</option>
             <option value="interestOnly">只还利息</option>
+          </select>
+        </label>
+
+
+        <label>
+          还款频率
+          <select value={repaymentFrequency} onChange={(e) => setRepaymentFrequency(e.target.value as RepaymentFrequency)}>
+            <option value="weekly">每周还款</option>
+            <option value="fortnightly">每两周还款</option>
+            <option value="monthly">每月还款</option>
           </select>
         </label>
 
@@ -265,6 +284,7 @@ export default function HomePage() {
           <li>年租金收入（按入住率）：{currency.format(result.grossRent)}</li>
           <li>年度运营成本（不含贷款）：{currency.format(result.totalExpenses)}</li>
           <li>年度贷款还款（{result.repaymentTypeLabel}）：{currency.format(result.annualMortgage)}</li>
+          <li>{result.repaymentFrequencyLabel}还款额：{currency.format(result.periodRepayment)}</li>
           <li>年度现金流：<strong>{currency.format(result.annualCashflow)}</strong></li>
           <li>毛租金回报率：{result.grossYieldPct.toFixed(2)}%</li>
           <li>净租金回报率：{result.netYieldPct.toFixed(2)}%</li>
