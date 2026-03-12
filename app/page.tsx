@@ -299,6 +299,10 @@ export default function HomePage() {
   const activePropertyY = padding.top + (1 - activePoint.propertyValue / maxPropertyValue) * plotHeight;
   const activeLvrY = padding.top + (1 - activePoint.lvr / maxLvr) * plotHeight;
 
+  const clampY = (y: number): number => Math.min(Math.max(y, padding.top + 12), chartHeight - padding.bottom - 8);
+  const activePropertyLabelY = clampY(activePropertyY);
+  const activeLvrLabelY = clampY(activeLvrY);
+
   const handleChartMouseMove = (e: React.MouseEvent<SVGSVGElement>): void => {
     const rect = e.currentTarget.getBoundingClientRect();
     const relativeX = Math.min(Math.max(e.clientX - rect.left - padding.left, 0), plotWidth);
@@ -472,8 +476,12 @@ export default function HomePage() {
 
             <text x={padding.left} y={chartHeight - 8} className="tick">0</text>
             <text x={chartWidth - padding.right} y={chartHeight - 8} textAnchor="end" className="tick">30 年</text>
-            <text x={padding.left - 8} y={padding.top + 4} textAnchor="end" className="tick">{currency.format(activePoint.propertyValue)}</text>
-            <text x={chartWidth - padding.right + 8} y={padding.top + 4} className="tick">{activePoint.lvr.toFixed(1)}%</text>
+            <text x={padding.left - 8} y={activePropertyLabelY} textAnchor="end" className="tick">
+              {currency.format(activePoint.propertyValue)}
+            </text>
+            <text x={chartWidth - padding.right + 8} y={activeLvrLabelY} className="tick">
+              {activePoint.lvr.toFixed(1)}%
+            </text>
             <text x={activeX} y={padding.top + 16} textAnchor="middle" className="tick">第 {activePoint.year} 年</text>
 
             {result.chartData.map((d, i) => {
